@@ -1,10 +1,10 @@
 type: leaky
 name: local/postfix-sasl-brute
-description: "Ban IPs that produce 2+ SASL failure events within 4h — catches single-attempt distributed brute force"
+description: "Ban IPs that produce 3+ SASL failure events within 2h — requires 2 failed connections before banning"
 filter: "evt.Meta.log_type_enh == 'spam-attempt'"
 groupby: "evt.Meta.source_ip"
-capacity: 1
-leakspeed: "4h"
+capacity: 2
+leakspeed: "2h"
 blackhole: "2m"
 labels:
   service: postfix
