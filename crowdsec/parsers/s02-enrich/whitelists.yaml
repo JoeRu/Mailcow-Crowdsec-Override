@@ -8,8 +8,11 @@ whitelist:
     # Add your own trusted IPs here (e.g. your static home IP, monitoring server)
     # - "1.2.3.4"
   cidr:
-    - "172.22.1.0/24"   # mailcow Docker network (default)
-    - "172.16.0.0/12"   # all Docker bridge ranges
+    - "172.22.1.0/24"         # mailcow Docker IPv4 network (default)
+    - "172.16.0.0/12"         # all Docker bridge ranges (IPv4)
+    - "fc00::/7"              # all ULA IPv6 ranges (Docker internal)
+    # If you have a custom mailcow IPv6_NETWORK set in mailcow.conf, add it here:
+    # - "fd4d:6169:6c63:6f77::/64"  # mailcow Docker IPv6 network (check your mailcow.conf)
     # Uncomment and adjust if you use a VPN (e.g. Tailscale, WireGuard):
     # - "100.64.0.0/10"   # Tailscale CGNAT range
     # - "10.0.0.0/8"      # common VPN/private range
