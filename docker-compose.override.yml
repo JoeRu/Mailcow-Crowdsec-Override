@@ -13,6 +13,8 @@ services:
         - crowdsec-config:/etc/crowdsec
         - ./crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml:ro
         - ./crowdsec/parsers/s02-enrich/whitelists.yaml:/etc/crowdsec/parsers/s02-enrich/whitelists.yaml:ro
+        - ./crowdsec/parsers/s01-parse/postfix-auth-failures.yaml:/etc/crowdsec/parsers/s01-parse/postfix-auth-failures.yaml:ro
+        - ./crowdsec/scenarios/postfix-sasl-brute.yaml:/etc/crowdsec/scenarios/postfix-sasl-brute.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock:ro
       networks:
         mailcow-network:

@@ -1,0 +1,16 @@
+name: local/postfix-auth-failures
+description: "Parse Postfix disconnect lines with failed auth (auth=0/N) to enable single-attempt brute force detection"
+filter: "evt.Parsed.program contains '/smtpd'"
+onsuccess: next_stage
+nodes:
+  - filter: "evt.Parsed.message contains 'disconnect from' && evt.Parsed.message contains 'auth=0/'"
+    grok:
+      pattern: 'disconnect from %{NOTSPACE:relay_hostname}\[%{IP:source_ip}\]'
+      apply_on: message
+    statics:
+      - meta: log_type_enh
+        value: spam-attempt
+      - meta: source_ip
+        expression: evt.Parsed.source_ip
+      - meta: service
+        value: postfix
