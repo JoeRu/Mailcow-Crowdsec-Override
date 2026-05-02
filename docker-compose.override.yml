@@ -1,0 +1,40 @@
+services:
+    crowdsec:
+      image: crowdsecurity/crowdsec:latest
+      restart: always
+      environment:
+        TZ: "Europe/Berlin"
+        COLLECTIONS: "crowdsecurity/nginx crowdsecurity/postfix crowdsecurity/dovecot"
+        GID: "0"
+      ports:
+        - "127.0.0.1:8080:8080"
+      volumes:
+        - crowdsec-db:/var/lib/crowdsec/data
+        - crowdsec-config:/etc/crowdsec
+        - ./crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+        - ./crowdsec/parsers/s02-enrich/whitelists.yaml:/etc/crowdsec/parsers/s02-enrich/whitelists.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock:ro
+      networks:
+        mailcow-network:
+          ipv4_address: ${IPV4_NETWORK:-172.22.1}.210
+          aliases:
+            - crowdsec
+
+    cs-firewall-bouncer:
+      image: cs-firewall-bouncer:local
+      build:
+        context: ./crowdsec
+        dockerfile: Dockerfile.bouncer
+      restart: always
+      cap_add:
+        - NET_ADMIN
+        - NET_RAW
+      network_mode: host
+      depends_on:
+        - crowdsec
+      volumes:
+        - ./crowdsec/cs-firewall-bouncer.yaml:/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml:ro
+
+volumes:
+    crowdsec-db:
+    crowdsec-config:

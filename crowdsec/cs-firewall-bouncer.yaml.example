@@ -1,0 +1,20 @@
+mode: iptables
+update_frequency: 10s
+daemonize: false
+log_mode: stdout
+log_level: info
+api_url: http://127.0.0.1:8080
+api_key: REPLACE_WITH_YOUR_BOUNCER_API_KEY
+iptables:
+  ipv4:
+    enabled: true
+    set-only: false
+    chain: CROWDSEC_CHAIN
+  ipv6:
+    enabled: true
+    set-only: false
+    chain: CROWDSEC_CHAIN6
+iptables_chains:
+  - INPUT
+  - FORWARD
+  - DOCKER-USER

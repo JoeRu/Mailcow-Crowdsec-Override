@@ -1,0 +1,2 @@
+# Bouncer config contains the LAPI API key — never commit this
+crowdsec/cs-firewall-bouncer.yaml

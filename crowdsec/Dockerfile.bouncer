@@ -1,0 +1,22 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        iptables \
+        ipset \
+        ca-certificates \
+        curl \
+        wget \
+        && rm -rf /var/lib/apt/lists/*
+
+ARG VERSION=v0.0.34
+RUN wget -q "https://github.com/crowdsecurity/cs-firewall-bouncer/releases/download/${VERSION}/crowdsec-firewall-bouncer-linux-amd64.tgz" \
+        -O /tmp/bouncer.tgz && \
+    tar -xzf /tmp/bouncer.tgz -C /tmp/ && \
+    mv /tmp/crowdsec-firewall-bouncer-${VERSION}/crowdsec-firewall-bouncer /usr/local/bin/crowdsec-firewall-bouncer && \
+    chmod +x /usr/local/bin/crowdsec-firewall-bouncer && \
+    rm -rf /tmp/bouncer.tgz /tmp/crowdsec-firewall-bouncer-${VERSION}
+
+RUN mkdir -p /etc/crowdsec/bouncers
+
+CMD ["/usr/local/bin/crowdsec-firewall-bouncer", "-c", "/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml"]

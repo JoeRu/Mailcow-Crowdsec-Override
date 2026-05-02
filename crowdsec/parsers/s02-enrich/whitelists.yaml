@@ -1,0 +1,15 @@
+name: crowdsecurity/whitelists
+description: "Whitelist trusted networks: localhost, Docker, VPN"
+whitelist:
+  reason: "trusted networks"
+  ip:
+    - "127.0.0.1"
+    - "::1"
+    # Add your own trusted IPs here (e.g. your static home IP, monitoring server)
+    # - "1.2.3.4"
+  cidr:
+    - "172.22.1.0/24"   # mailcow Docker network (default)
+    - "172.16.0.0/12"   # all Docker bridge ranges
+    # Uncomment and adjust if you use a VPN (e.g. Tailscale, WireGuard):
+    # - "100.64.0.0/10"   # Tailscale CGNAT range
+    # - "10.0.0.0/8"      # common VPN/private range

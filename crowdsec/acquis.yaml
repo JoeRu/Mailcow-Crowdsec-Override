@@ -1,0 +1,29 @@
+# CrowdSec log acquisition — Mailcow Docker containers
+#
+# Container names follow the pattern: <compose-project>-<service>-<index>
+# Default Mailcow project name is "mailcowdockerized", giving names like:
+#   mailcowdockerized-nginx-mailcow-1
+#
+# Verify your actual container names with:
+#   docker ps --format '{{.Names}}' | grep mailcow
+
+# nginx reverse proxy — HTTP access/error logs, web UI brute force
+source: docker
+container_name:
+  - mailcowdockerized-nginx-mailcow-1
+labels:
+  type: nginx
+---
+# postfix SMTP — SASL auth brute force, relay attempts
+source: docker
+container_name:
+  - mailcowdockerized-postfix-mailcow-1
+labels:
+  type: syslog
+---
+# dovecot IMAP/POP3 — auth brute force
+source: docker
+container_name:
+  - mailcowdockerized-dovecot-mailcow-1
+labels:
+  type: syslog
