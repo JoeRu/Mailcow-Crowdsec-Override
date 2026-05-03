@@ -38,9 +38,10 @@ postfix/dovecot/nginx containers
         │ logs via /var/run/docker.sock
         ▼
   crowdsec container (LAPI + agent, 127.0.0.1:8080)
-  - crowdsecurity/postfix-logs parser  → spam-attempt events
-  - local/postfix-auth-failures parser → spam-attempt events from disconnect lines
-  - local/postfix-sasl-brute scenario  → ban on 3+ events from same IP within 2h
+  - crowdsecurity/postfix-logs parser     → spam-attempt events (SASL warning lines)
+  - local/postfix-auth-failures parser   → spam-attempt events (disconnect auth=0/N lines)
+  - local/postfix-sasl-brute-world       → ban on 1st failed connection (non-home-country IPs)
+  - local/postfix-sasl-brute-de          → ban after 3rd failed connection (home-country IPs, default: DE)
   - crowdsecurity/dovecot + nginx scenarios also active
         │ decisions via HTTP API
         ▼
@@ -77,6 +78,8 @@ leakspeed: "1h"
 Connection 1: events 1+2 (bucket 2/4). Connection 2: events 3+4 (bucket 4/4, full). Connection 3: event 5 → overflow → ban. Allows two genuine mistype attempts before banning.
 
 Country detection uses `evt.Enriched.IsoCode` set by `crowdsecurity/geoip-enrich`. IPs with no country data (private ranges, lookup failures) fall into the world scenario.
+
+**To change the home country or disable geo-splitting:** see the README "Configure geo-aware thresholds" section. The ISO code `DE` appears in the filter lines of both scenario files — change it consistently in both. After editing, restart CrowdSec.
 
 ### `parsers/s02-enrich/whitelists.yaml`
 Critical entries:
@@ -151,7 +154,7 @@ docker exec mailcowdockerized-crowdsec-1 cscli decisions list -o json \
 ```bash
 docker exec mailcowdockerized-crowdsec-1 cscli metrics show scenarios
 ```
-Key columns: **Current Count** (events in open buckets), **Overflows** (bans triggered), **Poured** (total events processed). If `local/postfix-sasl-brute` shows zero Overflows after 30+ minutes of postfix traffic, the parser is not feeding it — check parser metrics.
+Key columns: **Current Count** (events in open buckets), **Overflows** (bans triggered), **Poured** (total events processed). If `local/postfix-sasl-brute-world` shows zero Overflows after 30+ minutes of postfix traffic, the parser is not feeding it — check parser metrics.
 
 ### Parser activity — confirm both postfix parsers are firing
 ```bash

@@ -7,6 +7,7 @@ Adds [CrowdSec](https://crowdsec.net/) threat detection and IP banning to a [Mai
 - **Detects** brute-force attacks on SMTP (Postfix), IMAP/POP3 (Dovecot), and the web UI (nginx) by reading their Docker logs
 - **Bans** attacking IPs at the iptables level (INPUT, FORWARD, DOCKER-USER chains) using ipsets — blocks before traffic reaches any service
 - **Shares** threat intelligence with the CrowdSec community network, pulling a live blocklist of known bad actors
+- **Geo-aware thresholds** — your home country gets a lenient threshold (ban after 3 failed logins); the rest of the world is banned immediately on the first attempt
 - **Zero Mailcow modifications** — everything is in `docker-compose.override.yml`, which Docker Compose merges automatically
 
 ## Architecture
@@ -62,7 +63,45 @@ If your names differ, edit `/opt/mailcow-dockerized/crowdsec/acquis.yaml` accord
 
 Edit `/opt/mailcow-dockerized/crowdsec/parsers/s02-enrich/whitelists.yaml` and add any IPs or CIDRs that should never be banned — your home IP, monitoring server, VPN range, etc.
 
-### 4. Start CrowdSec
+### 4. Configure geo-aware thresholds
+
+The included SMTP brute-force scenarios apply different ban thresholds by country:
+
+| Group | Threshold | Scenario file |
+|-------|-----------|---------------|
+| Lenient (home country) | Ban after **3 failed logins** within 1 hour | `crowdsec/scenarios/postfix-sasl-brute-de.yaml` |
+| Strict (rest of world) | Ban on **first failed login** | `crowdsec/scenarios/postfix-sasl-brute-world.yaml` |
+
+The files ship configured for **Germany (`DE`)**. To use a different country, edit both scenario files and replace `DE` with your country's [ISO 3166-1 alpha-2 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2#Officially_assigned_code_elements) (e.g. `FR` for France, `NL` for Netherlands, `US` for United States):
+
+```bash
+# Example: switch from Germany to Austria
+sed -i "s/IsoCode == 'DE'/IsoCode == 'AT'/g" \
+    /opt/mailcow-dockerized/crowdsec/scenarios/postfix-sasl-brute-de.yaml
+
+sed -i "s/IsoCode != 'DE'/IsoCode != 'AT'/g" \
+    /opt/mailcow-dockerized/crowdsec/scenarios/postfix-sasl-brute-world.yaml
+```
+
+To grant the lenient threshold to **multiple countries** (e.g. DE, AT, CH), edit the filter lines manually:
+
+```yaml
+# postfix-sasl-brute-de.yaml
+filter: "evt.Meta.log_type_enh == 'spam-attempt' && evt.Enriched.IsoCode in ['DE', 'AT', 'CH']"
+
+# postfix-sasl-brute-world.yaml
+filter: "evt.Meta.log_type_enh == 'spam-attempt' && !(evt.Enriched.IsoCode in ['DE', 'AT', 'CH'])"
+```
+
+To **disable geo-awareness entirely** and apply a single threshold for all IPs, delete `postfix-sasl-brute-de.yaml`, keep only `postfix-sasl-brute-world.yaml`, and set whatever `capacity` you prefer. Remove the `-de` bind mount from `docker-compose.override.yml`.
+
+After any scenario change, restart CrowdSec:
+
+```bash
+cd /opt/mailcow-dockerized && docker compose restart crowdsec
+```
+
+### 5. Start CrowdSec
 
 ```bash
 cd /opt/mailcow-dockerized
@@ -78,14 +117,14 @@ docker exec mailcowdockerized-crowdsec-1 cscli metrics show acquisition
 
 All three sources (nginx, postfix, dovecot) should show non-zero **Lines read**.
 
-### 5. Generate the bouncer API key
+### 6. Generate the bouncer API key
 
 ```bash
 BOUNCER_KEY=$(docker exec mailcowdockerized-crowdsec-1 cscli bouncers add firewall-bouncer -o raw)
 echo "Key: $BOUNCER_KEY"
 ```
 
-### 6. Create the bouncer config
+### 7. Create the bouncer config
 
 ```bash
 cp /opt/mailcow-dockerized/crowdsec/cs-firewall-bouncer.yaml.example \
@@ -96,7 +135,7 @@ sed -i "s/REPLACE_WITH_YOUR_BOUNCER_API_KEY/${BOUNCER_KEY}/" \
    /opt/mailcow-dockerized/crowdsec/cs-firewall-bouncer.yaml
 ```
 
-### 7. Build and start the firewall bouncer
+### 8. Build and start the firewall bouncer
 
 ```bash
 cd /opt/mailcow-dockerized
@@ -104,7 +143,7 @@ docker compose build cs-firewall-bouncer
 docker compose up -d cs-firewall-bouncer
 ```
 
-### 8. Verify
+### 9. Verify
 
 ```bash
 # Bouncer is registered and valid
@@ -202,8 +241,14 @@ crowdsec/
   acquis.yaml                                      ← log sources (adjust container names)
   Dockerfile.bouncer                               ← builds the firewall bouncer image
   cs-firewall-bouncer.yaml.example                 ← copy to .yaml and fill in API key
-  parsers/s02-enrich/
-    whitelists.yaml                                ← trusted IPs/CIDRs (adjust to your setup)
+  parsers/
+    s01-parse/
+      postfix-auth-failures.yaml                   ← catches disconnect auth=0/N lines
+    s02-enrich/
+      whitelists.yaml                              ← trusted IPs/CIDRs (adjust to your setup)
+  scenarios/
+    postfix-sasl-brute-world.yaml                  ← strict: ban on 1st failed login (all non-home-country IPs)
+    postfix-sasl-brute-de.yaml                     ← lenient: ban after 3 failed logins (home country, default: DE)
 ```
 
 ## Security notes
