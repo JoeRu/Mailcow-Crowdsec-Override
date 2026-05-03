@@ -1,4 +1,22 @@
 services:
+    prometheus-exporter-mailcow:
+      image: ghcr.io/mailcow/prometheus-exporter:2
+      ports:
+        - "9099:9099"
+      restart: always
+      environment:
+        TZ: "Europe/Berlin"
+        MAILCOW_EXPORTER_HOST: YOUR_MAILCOW_HOST
+        MAILCOW_EXPORTER_API_KEY: REPLACE_WITH_YOUR_MAILCOW_API_KEY
+        MAILCOW_EXPORTER_SECURITY_TOKEN: REPLACE_WITH_YOUR_SECURITY_TOKEN
+      dns:
+        - ${IPV4_NETWORK:-172.22.1}.254
+      networks:
+        mailcow-network:
+          ipv4_address: ${IPV4_NETWORK:-172.22.1}.209
+          aliases:
+            - prometheus-exporter
+
     crowdsec:
       image: crowdsecurity/crowdsec:latest
       restart: always
@@ -14,7 +32,8 @@ services:
         - ./crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml:ro
         - ./crowdsec/parsers/s02-enrich/whitelists.yaml:/etc/crowdsec/parsers/s02-enrich/whitelists.yaml:ro
         - ./crowdsec/parsers/s01-parse/postfix-auth-failures.yaml:/etc/crowdsec/parsers/s01-parse/postfix-auth-failures.yaml:ro
-        - ./crowdsec/scenarios/postfix-sasl-brute.yaml:/etc/crowdsec/scenarios/postfix-sasl-brute.yaml:ro
+        - ./crowdsec/scenarios/postfix-sasl-brute-world.yaml:/etc/crowdsec/scenarios/postfix-sasl-brute-world.yaml:ro
+        - ./crowdsec/scenarios/postfix-sasl-brute-de.yaml:/etc/crowdsec/scenarios/postfix-sasl-brute-de.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock:ro
       networks:
         mailcow-network:
@@ -24,9 +43,6 @@ services:
 
     cs-firewall-bouncer:
       image: cs-firewall-bouncer:local
-      build:
-        context: ./crowdsec
-        dockerfile: Dockerfile.bouncer
       restart: always
       cap_add:
         - NET_ADMIN

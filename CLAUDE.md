@@ -27,7 +27,8 @@ crowdsec/
     s02-enrich/
       whitelists.yaml                               ← trusted IPs/CIDRs (localhost, Docker, Tailscale)
   scenarios/
-    postfix-sasl-brute.yaml                         ← custom: bans on 3+ SASL failures within 2h
+    postfix-sasl-brute-world.yaml                   ← custom: non-DE IPs, ban on 1st failed connection
+    postfix-sasl-brute-de.yaml                      ← custom: DE IPs, ban after 3 failed connections within 1h
 ```
 
 ## Architecture
@@ -55,13 +56,27 @@ Catches `disconnect from unknown[x.x.x.x] ... auth=0/N` lines (failed auth, N at
 
 **Why needed:** The upstream `crowdsecurity/postfix-logs` parser only catches the `SASL LOGIN authentication failed` warning line — one event per attack. Single-attempt bots never trigger the default `postfix-spam` scenario (needs 5 events in 10s).
 
-### `scenarios/postfix-sasl-brute.yaml`
+### `scenarios/postfix-sasl-brute-world.yaml` and `postfix-sasl-brute-de.yaml`
+
+Two geo-split scenarios replace the previous single scenario. Each SMTP auth failure produces 2 `spam-attempt` events: one from the SASL warning line (upstream parser) and one from the disconnect `auth=0/N` line (custom parser).
+
+**World (non-DE):**
 ```yaml
-capacity: 2      # bucket holds 2; overflows (bans) on 3rd event
-leakspeed: "2h"  # 3 events within 2h = ban
-blackhole: "2m"  # prevent double-counting rapid disconnects
+filter: "evt.Meta.log_type_enh == 'spam-attempt' && evt.Enriched.IsoCode != 'DE'"
+capacity: 1      # overflow on 2nd event = ban on 1st failed connection
+leakspeed: "1h"
 ```
-With the disconnect parser, each SMTP auth failure produces 2 `spam-attempt` events. So 2 failed connections = 4 events → ban. One mistyped password = 2 events, which fills the bucket but does NOT overflow → no ban.
+First failed connection → 2 events → event 2 overflows → immediate ban. Also catches rotating-IP campaigns (e.g. Cloudflare WARP bots) that previously evaded the old capacity:2 threshold.
+
+**Germany:**
+```yaml
+filter: "evt.Meta.log_type_enh == 'spam-attempt' && evt.Enriched.IsoCode == 'DE'"
+capacity: 4      # overflow on 5th event = ban on 3rd failed connection
+leakspeed: "1h"
+```
+Connection 1: events 1+2 (bucket 2/4). Connection 2: events 3+4 (bucket 4/4, full). Connection 3: event 5 → overflow → ban. Allows two genuine mistype attempts before banning.
+
+Country detection uses `evt.Enriched.IsoCode` set by `crowdsecurity/geoip-enrich`. IPs with no country data (private ranges, lookup failures) fall into the world scenario.
 
 ### `parsers/s02-enrich/whitelists.yaml`
 Critical entries:
@@ -186,13 +201,22 @@ If local scenario bans are low but the postfix log shows many SASL failures, che
 
 ## Scenario Tuning Reference
 
-| Setting | Current | Effect of changing |
-|---------|---------|-------------------|
-| `capacity` | 2 | Lower → ban sooner, more false positives; higher → misses fast single-attempt bots |
-| `leakspeed` | 2h | Shorter → tighter window; longer → more permissive |
-| `blackhole` | 2m | Prevents double-banning when attacker sends rapid disconnects |
+Each failed SMTP connection produces **2 events** (SASL warning + disconnect). This determines how `capacity` maps to connection counts:
 
-Current settings require **2 failed connections** (= 4 events) within **2 hours** to trigger a ban. One mistyped password = 2 events → fills bucket but no ban.
+| `capacity` | Events to overflow | Failed connections to ban |
+|-----------|-------------------|--------------------------|
+| 1 | 2 | 1 (immediate) |
+| 3 | 4 | 2 |
+| 4 | 5 | 3 |
+| 5 | 6 | 3 |
+
+| Setting | World | DE | Effect of changing |
+|---------|-------|-----|-------------------|
+| `capacity` | 1 | 4 | Lower → ban sooner; higher → more lenient |
+| `leakspeed` | 1h | 1h | Shorter → tighter window; longer → forgiving across time |
+| `blackhole` | 2m | 2m | Prevents double-banning on rapid disconnects |
+
+To add more countries to the lenient group, extend the DE scenario filter: `evt.Enriched.IsoCode in ['DE', 'AT', 'CH']`.
 
 ## Repository Workflow
 

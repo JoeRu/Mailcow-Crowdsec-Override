@@ -1,0 +1,12 @@
+type: leaky
+name: local/postfix-sasl-brute-de
+description: "DE IPs: ban after 3 failed connections within 1h — allows accidental mistyping"
+filter: "evt.Meta.log_type_enh == 'spam-attempt' && evt.Enriched.IsoCode == 'DE'"
+groupby: "evt.Meta.source_ip"
+capacity: 4
+leakspeed: "1h"
+blackhole: "2m"
+labels:
+  service: postfix
+  type: bruteforce
+  remediation: true

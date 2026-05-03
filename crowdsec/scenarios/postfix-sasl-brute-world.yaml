@@ -1,0 +1,12 @@
+type: leaky
+name: local/postfix-sasl-brute-world
+description: "Non-DE IPs: ban on first SASL failure — one failed connection = immediate ban"
+filter: "evt.Meta.log_type_enh == 'spam-attempt' && evt.Enriched.IsoCode != 'DE'"
+groupby: "evt.Meta.source_ip"
+capacity: 1
+leakspeed: "1h"
+blackhole: "2m"
+labels:
+  service: postfix
+  type: bruteforce
+  remediation: true
