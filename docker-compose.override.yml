@@ -8,6 +8,8 @@ services:
         GID: "0"
       ports:
         - "127.0.0.1:8080:8080"
+# optional prometheus-metrics for grafana
+#        - "<TAILSCALE_IP>:6060:6060"
       volumes:
         - crowdsec-db:/var/lib/crowdsec/data
         - crowdsec-config:/etc/crowdsec
