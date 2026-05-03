@@ -102,7 +102,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(cs_active_decisions{action=\"ban\"})",
+          "expr": "sum(cs_active_decisions{job=~\"$job\",action=\"ban\"})",
           "legendFormat": "Total Bans",
           "refId": "A"
         }
@@ -137,7 +137,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(cs_active_decisions{action=\"ban\",origin=\"CAPI\"})",
+          "expr": "sum(cs_active_decisions{job=~\"$job\",action=\"ban\",origin=\"CAPI\"})",
           "legendFormat": "CAPI",
           "refId": "A"
         }
@@ -172,7 +172,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(cs_active_decisions{action=\"ban\",origin=\"lists\"})",
+          "expr": "sum(cs_active_decisions{job=~\"$job\",action=\"ban\",origin=\"lists\"})",
           "legendFormat": "Lists",
           "refId": "A"
         }
@@ -208,7 +208,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(cs_active_decisions{action=\"ban\",origin=\"crowdsec\",reason=~\"local/postfix-sasl.*\"})",
+          "expr": "sum(cs_active_decisions{job=~\"$job\",action=\"ban\",origin=\"crowdsec\",reason=~\"local/postfix-sasl.*\"})",
           "legendFormat": "SASL Bans",
           "refId": "A"
         }
@@ -245,7 +245,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(cs_buckets)",
+          "expr": "sum(cs_buckets{job=~\"$job\"})",
           "legendFormat": "Buckets",
           "refId": "A"
         }
@@ -282,7 +282,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(cs_alerts)",
+          "expr": "sum(cs_alerts{job=~\"$job\"})",
           "legendFormat": "Alerts",
           "refId": "A"
         }
@@ -320,7 +320,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (origin) (cs_active_decisions{action=\"ban\"})",
+          "expr": "sum by (origin) (cs_active_decisions{job=~\"$job\",action=\"ban\"})",
           "legendFormat": "{{origin}}",
           "refId": "A"
         }
@@ -357,7 +357,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sort_desc(topk(15, cs_active_decisions{action=\"ban\"}))",
+          "expr": "sort_desc(topk(15, cs_active_decisions{job=~\"$job\",action=\"ban\"}))",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }
@@ -393,7 +393,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (name) (rate(cs_bucket_overflowed_total[5m]) * 60)",
+          "expr": "sum by (name) (rate(cs_bucket_overflowed_total{job=~\"$job\"}[5m]) * 60)",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -422,7 +422,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (name) (rate(cs_bucket_poured_total[5m]) * 60)",
+          "expr": "sum by (name) (rate(cs_bucket_poured_total{job=~\"$job\"}[5m]) * 60)",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -451,7 +451,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(cs_bucket_overflowed_total{name=~\"local/postfix-sasl.*\"}[5m]) * 60",
+          "expr": "rate(cs_bucket_overflowed_total{job=~\"$job\",name=~\"local/postfix-sasl.*\"}[5m]) * 60",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -480,7 +480,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (origin) (cs_active_decisions{action=\"ban\"})",
+          "expr": "sum by (origin) (cs_active_decisions{job=~\"$job\",action=\"ban\"})",
           "legendFormat": "{{origin}}",
           "refId": "A"
         }
@@ -546,7 +546,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sort_desc(cs_alerts)",
+          "expr": "sort_desc(cs_alerts{job=~\"$job\"})",
           "legendFormat": "{{reason}}",
           "refId": "A",
           "instant": true,
@@ -577,7 +577,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "topk(8, rate(cs_alerts[10m]) * 60)",
+          "expr": "topk(8, rate(cs_alerts{job=~\"$job\"}[10m]) * 60)",
           "legendFormat": "{{reason}}",
           "refId": "A"
         }
@@ -613,13 +613,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(cs_parser_hits_ok_total[5m]) * 60)",
+          "expr": "sum(rate(cs_parser_hits_ok_total{job=~\"$job\"}[5m]) * 60)",
           "legendFormat": "Parsed OK",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(cs_parser_hits_ko_total[5m]) * 60)",
+          "expr": "sum(rate(cs_parser_hits_ko_total{job=~\"$job\"}[5m]) * 60)",
           "legendFormat": "Parse Failed",
           "refId": "B"
         }
@@ -648,7 +648,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (source) (rate(cs_dockersource_hits_total[5m]) * 60)",
+          "expr": "sum by (source) (rate(cs_dockersource_hits_total{job=~\"$job\"}[5m]) * 60)",
           "legendFormat": "{{source}}",
           "refId": "A"
         }
@@ -677,7 +677,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (name) (rate(cs_node_wl_hits_ok_total[5m]) * 60)",
+          "expr": "sum by (name) (rate(cs_node_wl_hits_ok_total{job=~\"$job\"}[5m]) * 60)",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -706,7 +706,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum by (name) (rate(cs_bucket_underflowed_total[5m]) * 60)",
+          "expr": "sum by (name) (rate(cs_bucket_underflowed_total{job=~\"$job\"}[5m]) * 60)",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -729,6 +729,25 @@
         "refresh": 1,
         "type": "datasource",
         "label": "Prometheus"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(cs_active_decisions,job)",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "name": "job",
+        "options": [],
+        "query": {
+          "query": "label_values(cs_active_decisions,job)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query",
+        "label": "Instance"
       }
     ]
   },
