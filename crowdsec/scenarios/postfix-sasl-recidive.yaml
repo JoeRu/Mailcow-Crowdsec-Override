@@ -1,0 +1,13 @@
+type: leaky
+name: local/postfix-sasl-recidive
+description: "Recidive: IPs returning after bans accumulate into a 7-day escalated ban (3 returns within 24h window)"
+filter: "evt.Meta.log_type_enh == 'spam-attempt'"
+groupby: "evt.Meta.source_ip"
+capacity: 5
+leakspeed: "24h"
+blackhole: "4h"
+duration: "168h"
+labels:
+  service: postfix
+  type: bruteforce
+  remediation: true

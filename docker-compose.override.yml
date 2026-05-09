@@ -18,6 +18,7 @@ services:
         - ./crowdsec/parsers/s01-parse/postfix-auth-failures.yaml:/etc/crowdsec/parsers/s01-parse/postfix-auth-failures.yaml:ro
         - ./crowdsec/scenarios/postfix-sasl-brute-world.yaml:/etc/crowdsec/scenarios/postfix-sasl-brute-world.yaml:ro
         - ./crowdsec/scenarios/postfix-sasl-brute-de.yaml:/etc/crowdsec/scenarios/postfix-sasl-brute-de.yaml:ro
+        - ./crowdsec/scenarios/postfix-sasl-recidive.yaml:/etc/crowdsec/scenarios/postfix-sasl-recidive.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock:ro
       networks:
         mailcow-network:
