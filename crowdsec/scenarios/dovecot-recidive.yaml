@@ -1,0 +1,13 @@
+type: leaky
+name: local/dovecot-recidive
+description: "Recidive: IPs returning after Dovecot bans accumulate into a 7-day escalated ban (2 returns within 24h window)"
+filter: "evt.Meta.log_type == 'dovecot_logs' && evt.Meta.dovecot_login_result == 'auth_failed'"
+groupby: "evt.Meta.source_ip"
+capacity: 5
+leakspeed: "24h"
+blackhole: "4h"
+duration: "168h"
+labels:
+  service: dovecot
+  type: bruteforce
+  remediation: true
