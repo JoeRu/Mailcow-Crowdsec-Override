@@ -1,0 +1,13 @@
+type: leaky
+name: local/http-recidive
+description: "Recidive: IPs returning after HTTP scan bans accumulate into a 7-day ban (3 returns within 24h window)"
+filter: "evt.Meta.service == 'http' && evt.Meta.http_status in ['404', '403', '400'] && evt.Parsed.static_ressource == 'false'"
+groupby: "evt.Meta.source_ip"
+capacity: 30
+leakspeed: "24h"
+blackhole: "5m"
+duration: "168h"
+labels:
+  service: http
+  type: scan
+  remediation: true

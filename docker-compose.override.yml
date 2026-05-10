@@ -20,6 +20,7 @@ services:
         - ./crowdsec/scenarios/postfix-sasl-brute-de.yaml:/etc/crowdsec/scenarios/postfix-sasl-brute-de.yaml:ro
         - ./crowdsec/scenarios/postfix-sasl-recidive.yaml:/etc/crowdsec/scenarios/postfix-sasl-recidive.yaml:ro
         - ./crowdsec/scenarios/dovecot-recidive.yaml:/etc/crowdsec/scenarios/dovecot-recidive.yaml:ro
+        - ./crowdsec/scenarios/http-recidive.yaml:/etc/crowdsec/scenarios/http-recidive.yaml:ro
         - /var/run/docker.sock:/var/run/docker.sock:ro
       networks:
         mailcow-network:
