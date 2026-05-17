@@ -8,6 +8,7 @@ Adds [CrowdSec](https://crowdsec.net/) threat detection and IP banning to a [Mai
 - **Bans** attacking IPs at the iptables level (INPUT, FORWARD, DOCKER-USER chains) using ipsets — blocks before traffic reaches any service
 - **Shares** threat intelligence with the CrowdSec community network, pulling a live blocklist of known bad actors
 - **Geo-aware thresholds** — your home country gets a lenient threshold (ban after 3 failed logins); the rest of the world is banned immediately on the first attempt
+- **Escalating bans** — persistent returners across SMTP, IMAP/POP3, and HTTP receive a 7-day ban after repeated offences
 - **Zero Mailcow modifications** — everything is in `docker-compose.override.yml`, which Docker Compose merges automatically
 
 ## Architecture
@@ -137,9 +138,11 @@ sed -i "s/REPLACE_WITH_YOUR_BOUNCER_API_KEY/${BOUNCER_KEY}/" \
 
 ### 8. Build and start the firewall bouncer
 
+The bouncer is built from `crowdsec/Dockerfile.bouncer`. It automatically fetches the latest release from GitHub at build time — no version to maintain manually.
+
 ```bash
 cd /opt/mailcow-dockerized
-docker compose build cs-firewall-bouncer
+docker compose build --no-cache cs-firewall-bouncer
 docker compose up -d cs-firewall-bouncer
 ```
 
@@ -221,11 +224,18 @@ cd /opt/mailcow-dockerized && docker compose up -d crowdsec
 
 ## Upgrading the bouncer
 
-To update the bouncer to a newer version, change `ARG VERSION` in `crowdsec/Dockerfile.bouncer`, then rebuild:
+The Dockerfile resolves the latest release automatically via the GitHub API. To upgrade:
 
 ```bash
 cd /opt/mailcow-dockerized
 docker compose build --no-cache cs-firewall-bouncer
+docker compose up -d cs-firewall-bouncer
+```
+
+`--no-cache` is required to bypass Docker's layer cache and force a fresh GitHub API lookup. To pin a specific version instead:
+
+```bash
+docker compose build --no-cache --build-arg VERSION=v0.0.34 cs-firewall-bouncer
 docker compose up -d cs-firewall-bouncer
 ```
 
@@ -249,7 +259,22 @@ crowdsec/
   scenarios/
     postfix-sasl-brute-world.yaml                  ← strict: ban on 1st failed login (all non-home-country IPs)
     postfix-sasl-brute-de.yaml                     ← lenient: ban after 3 failed logins (home country, default: DE)
+    postfix-sasl-recidive.yaml                     ← escalation: 7-day ban after 3 SMTP returns within 24h
+    dovecot-recidive.yaml                          ← escalation: 7-day ban after 2 IMAP/POP3 returns within 24h
+    http-recidive.yaml                             ← escalation: 7-day ban after 3 HTTP scan returns within 24h
 ```
+
+## Escalating ban logic
+
+Persistent attackers that return after their initial ban receive progressively longer bans via dedicated recidive scenarios. Each scenario watches the same events as its base counterpart but uses a 24-hour leaky bucket — events drain slowly, so only IPs that return within 24h of their previous attempt accumulate toward the escalated ban.
+
+| Protocol | Base scenario | Escalation trigger | Escalated ban |
+|---|---|---|---|
+| SMTP AUTH | 1st failed connection → 4h (`postfix-sasl-brute-world`) | 3 returns within 24h | **7 days** |
+| IMAP/POP3 | 4 auth failures in 6 min → 4h (`dovecot-spam`) | 2 returns within 24h | **7 days** |
+| HTTP scan | 10 unique 404/403/400 paths → 4h (`http-probing`) | 3 return visits within 24h | **7 days** |
+
+IPs that space their attacks more than 24h apart continue receiving short bans from the base scenarios — the recidive bucket drains before they return. Only persistent same-day returners escalate.
 
 ## Security notes
 
