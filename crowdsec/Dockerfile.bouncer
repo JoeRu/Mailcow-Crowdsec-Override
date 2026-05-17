@@ -9,8 +9,12 @@ RUN apt-get update && \
         wget \
         && rm -rf /var/lib/apt/lists/*
 
-ARG VERSION=v0.0.34
-RUN wget -q "https://github.com/crowdsecurity/cs-firewall-bouncer/releases/download/${VERSION}/crowdsec-firewall-bouncer-linux-amd64.tgz" \
+ARG VERSION=latest
+RUN if [ "$VERSION" = "latest" ]; then \
+        VERSION=$(curl -s https://api.github.com/repos/crowdsecurity/cs-firewall-bouncer/releases/latest | grep '"tag_name"' | cut -d'"' -f4); \
+    fi && \
+    echo "Installing cs-firewall-bouncer ${VERSION}" && \
+    wget -q "https://github.com/crowdsecurity/cs-firewall-bouncer/releases/download/${VERSION}/crowdsec-firewall-bouncer-linux-amd64.tgz" \
         -O /tmp/bouncer.tgz && \
     tar -xzf /tmp/bouncer.tgz -C /tmp/ && \
     mv /tmp/crowdsec-firewall-bouncer-${VERSION}/crowdsec-firewall-bouncer /usr/local/bin/crowdsec-firewall-bouncer && \

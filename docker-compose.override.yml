@@ -30,6 +30,9 @@ services:
 
     cs-firewall-bouncer:
       image: cs-firewall-bouncer:local
+      build:
+        context: ./crowdsec
+        dockerfile: Dockerfile.bouncer
       restart: always
       cap_add:
         - NET_ADMIN
