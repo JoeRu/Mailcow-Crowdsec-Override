@@ -197,11 +197,6 @@ EOF
   ' "$override" > "${override}.tmp" && mv "${override}.tmp" "$override"
 }
 
-extract_peer_id() {
-  # Reads federloom logs on stdin; prints the last "peer ID:" value or nothing.
-  grep 'peer ID:' | tail -1 | awk '{print $NF}'
-}
-
 merge_compose() {
   local override="$MAILCOW_ROOT/docker-compose.override.yml"
   [[ -f "$override" ]] || die "No docker-compose.override.yml in $MAILCOW_ROOT — install the CrowdSec integration first."
@@ -222,6 +217,11 @@ $cfgerr"
 $cfgerr"
   fi
   log "federloom service merged into docker-compose.override.yml."
+}
+
+extract_peer_id() {
+  # Reads federloom logs on stdin; prints the last "peer ID:" value or nothing.
+  grep 'peer ID:' | tail -1 | awk '{print $NF}'
 }
 
 main() {
