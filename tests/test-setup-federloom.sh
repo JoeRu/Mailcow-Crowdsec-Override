@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Unit/integration tests for federloom/setup-federloom.sh
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/.." && pwd)"
+SCRIPT="$REPO/federloom/setup-federloom.sh"
+FIX="$HERE/fixtures"
+fail=0
+check() { # check "name" actual expected
+  if [[ "$2" == "$3" ]]; then printf 'ok   - %s\n' "$1"
+  else printf 'FAIL - %s\n      got: %q\n      exp: %q\n' "$1" "$2" "$3"; fail=1; fi
+}
+contains() { # contains "name" haystack needle
+  if printf '%s' "$2" | grep -qF -- "$3"; then printf 'ok   - %s\n' "$1"
+  else printf 'FAIL - %s (missing: %q)\n' "$1" "$3"; fail=1; fi
+}
+
+# --- CLI behavior (run as a subprocess) ---
+out="$(bash "$SCRIPT" --help 2>&1)"; rc=$?
+check "help exits 0" "$rc" "0"
+contains "help shows usage" "$out" "Usage:"
+out="$(bash "$SCRIPT" --bogus 2>&1)"; rc=$?
+check "unknown option exits 1" "$rc" "1"
+
+# --- Source the script to unit-test functions (guard prevents main()) ---
+# shellcheck disable=SC1090
+source "$SCRIPT"
+
+# (later tasks append more tests here)
+
+exit "$fail"
