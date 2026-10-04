@@ -155,6 +155,8 @@ merge_compose_file() {
   fi
   cp "$override" "${override}.bak.$(date +%Y%m%d-%H%M%S)"
 
+  # PUBLIC_IP is set by detect_and_confirm in a full run; defaults to 0.0.0.0 if a
+  # caller invokes this standalone without detection.
   local adv="${PUBLIC_IP:-0.0.0.0}"
   local svc
   # 4-space indent for the service key, 6-space for its properties — matches the
@@ -202,14 +204,17 @@ merge_compose() {
   before_bak="$(ls -1 "${override}".bak.* 2>/dev/null | wc -l)"
   merge_compose_file "$override"
   # Validate the merged result; restore the newest backup if it broke.
-  if ! ( cd "$MAILCOW_ROOT" && docker compose config -q ) 2>/dev/null; then
+  local cfgerr
+  if ! cfgerr="$( cd "$MAILCOW_ROOT" && docker compose config -q 2>&1 >/dev/null )"; then
     local newest
     newest="$(ls -1t "${override}".bak.* 2>/dev/null | head -1)"
     if [[ -n "$newest" && "$(ls -1 "${override}".bak.* 2>/dev/null | wc -l)" -gt "$before_bak" ]]; then
       cp "$newest" "$override"
-      die "Merged docker-compose.override.yml failed validation — restored from $newest."
+      die "Merged docker-compose.override.yml failed validation — restored from $newest.
+$cfgerr"
     fi
-    die "docker-compose.override.yml failed validation."
+    die "docker-compose.override.yml failed validation.
+$cfgerr"
   fi
   log "federloom service merged into docker-compose.override.yml."
 }

@@ -63,7 +63,7 @@ contains "merge adds federloom-data volume" "$(cat "$work/dco.yml")" "    federl
 contains "merge sets advertise IP" "$(cat "$work/dco.yml")" "/ip4/203.0.113.5/tcp/7700"
 contains "merge wraps in start marker" "$(cat "$work/dco.yml")" "# >>> federloom"
 # A timestamped backup was created:
-if ls "$work"/dco.yml.bak.* >/dev/null 2>&1; then printf 'ok   - merge made a backup\n'; else printf 'FAIL - merge made a backup\n'; fail=1; fi
+if ls "$work"/dco.yml.bak.* >/dev/null 2>&1; then printf 'ok   - merge made a backup\n'; else printf 'FAIL - merge did not make a backup\n'; fail=1; fi
 # Idempotency: second run is a no-op (marker count stays 1)
 merge_compose_file "$work/dco.yml"
 mc="$(grep -c '# >>> federloom' "$work/dco.yml")"
