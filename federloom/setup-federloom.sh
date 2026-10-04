@@ -146,6 +146,74 @@ dnsbl:
 EOF
 }
 
+merge_compose_file() {
+  # $1 = path to docker-compose.override.yml. Idempotent; backs up before editing.
+  local override="$1"
+  if grep -q '# >>> federloom' "$override"; then
+    log "federloom already present in $(basename "$override") — skipping merge."
+    return 0
+  fi
+  cp "$override" "${override}.bak.$(date +%Y%m%d-%H%M%S)"
+
+  local adv="${PUBLIC_IP:-0.0.0.0}"
+  local svc
+  # 4-space indent for the service key, 6-space for its properties — matches the
+  # existing crowdsec service block in this repo's override.
+  svc=$(cat <<EOF
+    # >>> federloom (added by setup-federloom.sh) >>>
+    federloom:
+      image: ghcr.io/joeru/federloom:latest
+      container_name: federloom
+      restart: unless-stopped
+      cap_add: [ NET_ADMIN, NET_RAW ]
+      network_mode: host
+      depends_on:
+        - crowdsec
+      environment:
+        DOCKER_HOST: unix:///host-run/docker.sock
+      volumes:
+        - /run:/host-run:ro
+        - ./federloom/config.local.yaml:/etc/federloom/config.yaml:ro
+        - ./federloom/rules.yaml:/etc/federloom/rules.yaml:ro
+        - federloom-data:/var/lib/federloom
+      command: >
+        --config /etc/federloom/config.yaml
+        --listen /ip4/0.0.0.0/tcp/7700
+        --advertise /ip4/${adv}/tcp/7700
+    # <<< federloom <<<
+EOF
+)
+  local vol="    federloom-data:"
+
+  # Insert the service after the first top-level 'services:' and the volume after
+  # the first top-level 'volumes:'. If no 'volumes:' exists, append one.
+  awk -v svc="$svc" -v vol="$vol" '
+    { print }
+    /^services:[[:space:]]*$/ && !s { print svc; s=1 }
+    /^volumes:[[:space:]]*$/  && !v { print vol; v=1 }
+    END { if (!v) { print "volumes:"; print vol } }
+  ' "$override" > "${override}.tmp" && mv "${override}.tmp" "$override"
+}
+
+merge_compose() {
+  local override="$MAILCOW_ROOT/docker-compose.override.yml"
+  [[ -f "$override" ]] || die "No docker-compose.override.yml in $MAILCOW_ROOT — install the CrowdSec integration first."
+  local before_bak
+  before_bak="$(ls -1 "${override}".bak.* 2>/dev/null | wc -l)"
+  merge_compose_file "$override"
+  # Validate the merged result; restore the newest backup if it broke.
+  if ! ( cd "$MAILCOW_ROOT" && docker compose config -q ) 2>/dev/null; then
+    local newest
+    newest="$(ls -1t "${override}".bak.* 2>/dev/null | head -1)"
+    if [[ -n "$newest" && "$(ls -1 "${override}".bak.* 2>/dev/null | wc -l)" -gt "$before_bak" ]]; then
+      cp "$newest" "$override"
+      die "Merged docker-compose.override.yml failed validation — restored from $newest."
+    fi
+    die "docker-compose.override.yml failed validation."
+  fi
+  log "federloom service merged into docker-compose.override.yml."
+}
+
 main() {
   parse_args "$@"
   preflight

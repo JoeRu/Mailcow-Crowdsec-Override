@@ -53,4 +53,32 @@ TAILSCALE_IP=""; cfg2="$(mktemp)"; generate_config "$cfg2"
 if grep -q '    - $' "$cfg2"; then printf 'FAIL - no empty whitelist entries\n'; fail=1; else printf 'ok   - no empty whitelist entries\n'; fi
 rm -f "$cfg" "$cfg2"
 
+# --- merge_compose_file (operates on a copy of the real override) ---
+work="$(mktemp -d)"; cp "$REPO/docker-compose.override.yml" "$work/dco.yml"
+PUBLIC_IP="203.0.113.5"
+merge_compose_file "$work/dco.yml"
+# federloom service inserted under services:, volume under volumes:
+contains "merge adds federloom service" "$(cat "$work/dco.yml")" "    federloom:"
+contains "merge adds federloom-data volume" "$(cat "$work/dco.yml")" "    federloom-data:"
+contains "merge sets advertise IP" "$(cat "$work/dco.yml")" "/ip4/203.0.113.5/tcp/7700"
+contains "merge wraps in start marker" "$(cat "$work/dco.yml")" "# >>> federloom"
+# A timestamped backup was created:
+if ls "$work"/dco.yml.bak.* >/dev/null 2>&1; then printf 'ok   - merge made a backup\n'; else printf 'FAIL - merge made a backup\n'; fail=1; fi
+# Idempotency: second run is a no-op (marker count stays 1)
+merge_compose_file "$work/dco.yml"
+mc="$(grep -c '# >>> federloom' "$work/dco.yml")"
+check "merge is idempotent (one marker)" "$mc" "1"
+# Compose still validates. The override references mailcow-network (defined in
+# Mailcow's base docker-compose.yml), so declare it external to validate the copy
+# standalone. This checks the full merged result, including the federloom service.
+if command -v docker >/dev/null 2>&1; then
+  printf 'networks:\n  mailcow-network:\n    external: true\n' >> "$work/dco.yml"
+  if ( cd "$work" && docker compose -f dco.yml config -q ) 2>/dev/null; then
+    printf 'ok   - merged override validates with docker compose\n'
+  else
+    printf 'FAIL - merged override failed docker compose config\n'; fail=1
+  fi
+fi
+rm -rf "$work"
+
 exit "$fail"
