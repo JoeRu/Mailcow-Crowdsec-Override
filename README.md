@@ -239,6 +239,64 @@ docker compose build --no-cache --build-arg VERSION=v0.0.34 cs-firewall-bouncer
 docker compose up -d cs-firewall-bouncer
 ```
 
+## Keeping the bouncer current after Mailcow updates
+
+Mailcow runs `post_update_hook.sh` from the install root at the end of every
+`./update.sh`. Copy the example so the firewall bouncer is rebuilt (and re-fetches
+its latest release) automatically after each Mailcow update:
+
+```bash
+cp post_update_hook.sh.example /opt/mailcow-dockerized/post_update_hook.sh
+chmod +x /opt/mailcow-dockerized/post_update_hook.sh
+```
+
+The hook also pulls and restarts FederLoom if it is installed (see below); it is a
+no-op otherwise.
+
+## Optional: FederLoom federated reputation sharing
+
+[FederLoom](https://github.com/JoeRu/federloom) is a decentralized, federated
+IP-reputation sidecar. Where CrowdSec shares intel through its **central**
+community network, FederLoom shares trust-weighted reputation **peer-to-peer**
+between self-hosted servers. It runs alongside this CrowdSec integration —
+CrowdSec for local detection and enforcement, FederLoom for federated intel — and
+consumes the same local CrowdSec LAPI.
+
+A helper script installs and auto-configures it:
+
+```bash
+cd /opt/mailcow-dockerized   # or wherever this repo's files were copied
+./federloom/setup-federloom.sh /opt/mailcow-dockerized
+```
+
+The script auto-detects your public IP, Tailscale IP, Docker networks, and
+Mailcow container names and asks you to confirm before applying. It registers a
+CrowdSec bouncer named `federloom`, writes `federloom/config.local.yaml` (which is
+gitignored — it holds the API key), fetches `rules.yaml` from upstream, merges a
+`federloom` service into your existing `docker-compose.override.yml` (after a
+timestamped backup), and starts the container. Re-running it is safe.
+
+After it starts, open inbound **tcp/7700** in your firewall for full peer-to-peer
+federation.
+
+### Joining the maintainer's federation
+
+The script offers (opt-in) to join the `federloom.jru.me` honeypot federation
+using the bundled trust invite. Verify this fingerprint out-of-band first:
+
+```
+79bb d13a 114b 88fe
+```
+
+The setup script saves the invite to `federloom/federation.invite`. To join later by hand:
+
+```bash
+cd /opt/mailcow-dockerized
+docker compose cp federloom/federation.invite federloom:/tmp/federation.invite
+docker compose exec federloom federloomctl federation join /tmp/federation.invite \
+    --config /etc/federloom/config.yaml
+```
+
 ## Compatibility with Mailcow updates
 
 Mailcow's `./update.sh` uses `docker compose` from the installation directory, which automatically merges `docker-compose.override.yml`. CrowdSec services are unaffected by Mailcow updates.

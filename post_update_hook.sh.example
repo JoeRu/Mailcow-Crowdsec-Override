@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Mailcow post-update hook.
+#
+# Copy to your Mailcow root as post_update_hook.sh and make it executable:
+#   cp post_update_hook.sh.example /opt/mailcow-dockerized/post_update_hook.sh
+#   chmod +x /opt/mailcow-dockerized/post_update_hook.sh
+#
+# Mailcow's ./update.sh runs this automatically at the end of an update.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+# Rebuild the firewall bouncer so it re-fetches the latest release
+# (the image layer is cached, so a plain `up` would keep the old version).
+docker compose build --no-cache cs-firewall-bouncer
+docker compose up -d cs-firewall-bouncer
+
+# If FederLoom is installed, pull and restart it too (no-op otherwise).
+if docker compose config --services 2>/dev/null | grep -qx federloom; then
+  docker compose pull federloom
+  docker compose up -d federloom
+fi

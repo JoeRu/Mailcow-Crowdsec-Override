@@ -1,2 +1,6 @@
 # Bouncer config contains the LAPI API key — never commit this
 crowdsec/cs-firewall-bouncer.yaml
+# FederLoom generated config (contains the CrowdSec API key)
+federloom/config.local.yaml
+# docker-compose.override.yml backups made by setup-federloom.sh
+docker-compose.override.yml.bak.*
