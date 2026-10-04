@@ -109,6 +109,8 @@ installer meant to be run on the mailcow host itself.
      (do not overwrite an existing `config.yaml`/`rules.yaml` without confirming).
    - Keep the fetched upstream `docker-compose.override.yml` in the temp dir for
      the compose-merge step.
+   - Also fetch `federation.invite` from the upstream repo **root** (one level up
+     from `deploy/mailcow/`) for the optional federation-join step.
 
 3. **Auto-detect + confirm**
    Detect and present a confirmation table:
@@ -158,6 +160,23 @@ installer meant to be run on the mailcow host itself.
    - Print next-step notes: spamtrap stays disabled by default; CrowdSec ingest is
      now enabled.
 
+8. **Offer to join the maintainer's federation (prompted, opt-in)**
+   - A trust invite for the `federloom.jru.me` honeypot node is bundled in the
+     upstream repo (`federation.invite`, fetched in step 2).
+   - Display the out-of-band fingerprint **`79bb d13a 114b 88fe`** and prompt the
+     user to confirm they want to join (default: no / explicit confirmation
+     required — joining establishes a trust relationship and should be a
+     deliberate choice; `--yes` mode does NOT auto-join).
+   - On confirmation, copy the invite into the running container and apply it:
+
+     ```bash
+     docker compose cp <tmp>/federation.invite federloom:/tmp/federation.invite
+     docker compose exec federloom federloomctl federation join /tmp/federation.invite \
+         --config /etc/federloom/config.yaml
+     ```
+   - If the invite file was not fetched (e.g. moved upstream), skip with a note and
+     print the manual join instructions, including the fingerprint to verify.
+
 ### Idempotency & safety
 
 - Re-running the script is safe: existing bouncer reused, existing federloom
@@ -171,7 +190,9 @@ installer meant to be run on the mailcow host itself.
 Add an "Optional: FederLoom federated reputation sharing" section: one-paragraph
 explanation of what FederLoom is and that it is independent of and complementary
 to CrowdSec, the single `./federloom/setup-federloom.sh` command, the tcp/7700
-firewall note, and how to confirm it is running.
+firewall note, the opt-in prompt to join the maintainer's `federloom.jru.me`
+federation (with the `79bb d13a 114b 88fe` fingerprint to verify out-of-band),
+and how to confirm it is running.
 
 ## Testing approach
 
