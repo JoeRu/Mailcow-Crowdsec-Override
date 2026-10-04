@@ -81,4 +81,8 @@ if command -v docker >/dev/null 2>&1; then
 fi
 rm -rf "$work"
 
+# --- extract_peer_id ---
+pid="$(extract_peer_id < "$FIX/federloom-peerid.log")"
+check "extract_peer_id reads peer ID" "$pid" "12D3KooWABCDschema1234567890abcdefghijklmnopqrstuv"
+
 exit "$fail"

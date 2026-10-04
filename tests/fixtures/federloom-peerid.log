@@ -1,0 +1,4 @@
+2026-10-04T10:00:00Z INFO starting federloomd
+2026-10-04T10:00:01Z INFO host listening /ip4/0.0.0.0/tcp/7700
+2026-10-04T10:00:01Z INFO peer ID: 12D3KooWABCDschema1234567890abcdefghijklmnopqrstuv
+2026-10-04T10:00:02Z INFO ingest mailcow_logs enabled
