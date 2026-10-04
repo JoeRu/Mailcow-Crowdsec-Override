@@ -299,14 +299,23 @@ register_bouncer() {
 install_files() {
   local dir="$MAILCOW_ROOT/federloom"
   mkdir -p "$dir"
+  # Always refresh rules.yaml so re-runs pick up upstream rule changes.
   cp "$TMPDIR_FL/rules.yaml" "$dir/rules.yaml"
-  generate_config "$dir/config.local.yaml"
-  chmod 600 "$dir/config.local.yaml"
-  log "Wrote $dir/rules.yaml and $dir/config.local.yaml."
+  # Preserve an existing config on re-run when the bouncer key could not be
+  # re-read (reused bouncer), so a previously-working api_key is not overwritten
+  # with an empty value.
+  if [[ -f "$dir/config.local.yaml" && -z "$API_KEY" && "$CROWDSEC_ENABLED" == "true" ]]; then
+    warn "Keeping existing $dir/config.local.yaml (bouncer key could not be re-read)."
+  else
+    generate_config "$dir/config.local.yaml"
+    chmod 600 "$dir/config.local.yaml"
+  fi
+  log "Wrote $dir/rules.yaml; config.local.yaml ready."
 }
 
 start_and_report() {
   ( cd "$MAILCOW_ROOT" && docker compose up -d federloom ) || die "Failed to start federloom."
+  log "Waiting for FederLoom to start..."
   sleep 10
   local peer
   peer="$(cd "$MAILCOW_ROOT" && docker compose logs federloom 2>/dev/null | extract_peer_id || true)"
@@ -341,7 +350,7 @@ offer_federation_join() {
       && log "Joined the federation." \
       || warn "Federation join failed — you can retry the two commands above manually."
   else
-    log "Skipped federation join. The invite is at $TMPDIR_FL/federation.invite (temporary)."
+    log "Skipped federation join. The invite file is deleted on exit; re-run the script to join later."
   fi
 }
 
