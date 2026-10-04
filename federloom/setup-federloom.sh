@@ -224,11 +224,140 @@ extract_peer_id() {
   grep 'peer ID:' | tail -1 | awk '{print $NF}'
 }
 
+fetch_upstream() {
+  # Fetches only the static upstream files into $TMPDIR_FL: rules.yaml + federation.invite.
+  TMPDIR_FL="$(mktemp -d)"
+  if command -v git >/dev/null 2>&1; then
+    git clone --quiet --depth 1 --filter=blob:none --sparse "$FEDERLOOM_REPO" "$TMPDIR_FL/repo" \
+      || die "git clone of $FEDERLOOM_REPO failed."
+    ( cd "$TMPDIR_FL/repo" && git sparse-checkout set deploy/mailcow >/dev/null 2>&1 ) \
+      || die "sparse-checkout failed."
+    cp "$TMPDIR_FL/repo/deploy/mailcow/rules.yaml" "$TMPDIR_FL/rules.yaml" \
+      || die "rules.yaml not found in upstream."
+    if [[ -f "$TMPDIR_FL/repo/federation.invite" ]]; then
+      cp "$TMPDIR_FL/repo/federation.invite" "$TMPDIR_FL/federation.invite"
+    fi
+  else
+    curl -fsSL "https://raw.githubusercontent.com/JoeRu/federloom/main/deploy/mailcow/rules.yaml" \
+      -o "$TMPDIR_FL/rules.yaml" || die "curl of rules.yaml failed."
+    curl -fsSL "https://raw.githubusercontent.com/JoeRu/federloom/main/federation.invite" \
+      -o "$TMPDIR_FL/federation.invite" || warn "federation.invite not fetched; join step will print manual steps."
+  fi
+  log "Fetched upstream rules.yaml$( [[ -f "$TMPDIR_FL/federation.invite" ]] && echo ' + federation.invite' )."
+}
+
+detect_and_confirm() {
+  POSTFIX_CTR="$(detect_container postfix || true)"; POSTFIX_CTR="${POSTFIX_CTR:-mailcowdockerized-postfix-mailcow-1}"
+  DOVECOT_CTR="$(detect_container dovecot || true)"; DOVECOT_CTR="${DOVECOT_CTR:-mailcowdockerized-dovecot-mailcow-1}"
+  PUBLIC_IP="$(curl -fsS --max-time 5 https://ifconfig.co 2>/dev/null || curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || true)"
+  if command -v tailscale >/dev/null 2>&1; then
+    TAILSCALE_IP="$(tailscale ip -4 2>/dev/null | head -1 || true)"
+  fi
+  # Prefer the Mailcow-configured network if present.
+  local net
+  net="$(grep -E '^IPV4_NETWORK=' "$MAILCOW_ROOT/mailcow.conf" 2>/dev/null | cut -d= -f2 || true)"
+  [[ -n "$net" ]] && MAILCOW_NETWORK="${net}.0/24"
+
+  cat <<EOF
+
+Detected configuration:
+  Public IP        : ${PUBLIC_IP:-<none>}
+  Tailscale IP     : ${TAILSCALE_IP:-<none>}
+  Mailcow network  : ${MAILCOW_NETWORK}
+  Docker bridge    : ${DOCKER_BRIDGE}
+  CrowdSec ctr     : ${CROWDSEC_CTR}
+  Postfix ctr      : ${POSTFIX_CTR}
+  Dovecot ctr      : ${DOVECOT_CTR}
+EOF
+  if [[ "$ASSUME_YES" -ne 1 ]]; then
+    read -r -p "Proceed with these values? [y/N] " ans
+    [[ "$ans" =~ ^[Yy]$ ]] || die "Aborted by user. Re-run and edit values, or set them via env before running."
+  fi
+}
+
+register_bouncer() {
+  if docker exec "$CROWDSEC_CTR" cscli bouncers list 2>/dev/null | grep -q '\bfederloom\b'; then
+    warn "A CrowdSec bouncer named 'federloom' already exists. Reusing it; its key cannot be re-read."
+    warn "If you need a fresh key: docker exec $CROWDSEC_CTR cscli bouncers delete federloom, then re-run."
+    CROWDSEC_ENABLED="true"; API_KEY=""
+    return 0
+  fi
+  local raw
+  raw="$(docker exec "$CROWDSEC_CTR" cscli bouncers add federloom 2>&1 || true)"
+  API_KEY="$(printf '%s\n' "$raw" | extract_api_key)"
+  if [[ -z "$API_KEY" ]]; then
+    warn "Could not extract the CrowdSec API key automatically. CrowdSec ingest left disabled."
+    warn "Run: docker exec $CROWDSEC_CTR cscli bouncers add federloom"
+    warn "Then set api_key in $MAILCOW_ROOT/federloom/config.local.yaml and restart federloom."
+    CROWDSEC_ENABLED="false"
+  else
+    CROWDSEC_ENABLED="true"
+    log "Registered CrowdSec bouncer 'federloom'."
+  fi
+}
+
+install_files() {
+  local dir="$MAILCOW_ROOT/federloom"
+  mkdir -p "$dir"
+  cp "$TMPDIR_FL/rules.yaml" "$dir/rules.yaml"
+  generate_config "$dir/config.local.yaml"
+  chmod 600 "$dir/config.local.yaml"
+  log "Wrote $dir/rules.yaml and $dir/config.local.yaml."
+}
+
+start_and_report() {
+  ( cd "$MAILCOW_ROOT" && docker compose up -d federloom ) || die "Failed to start federloom."
+  sleep 10
+  local peer
+  peer="$(cd "$MAILCOW_ROOT" && docker compose logs federloom 2>/dev/null | extract_peer_id || true)"
+  echo ""
+  if [[ -n "$peer" ]]; then
+    log "FederLoom is running."
+    echo "  Peer ID  : $peer"
+    echo "  Multiaddr: /ip4/${PUBLIC_IP:-<your-ip>}/tcp/7700/p2p/$peer"
+  else
+    warn "Could not read the peer ID yet. Check: cd $MAILCOW_ROOT && docker compose logs federloom"
+  fi
+  echo ""
+  echo "NOTE: open inbound tcp/7700 in your firewall for full p2p peering."
+}
+
+offer_federation_join() {
+  echo ""
+  echo "Optional: join the maintainer's FederLoom federation (federloom.jru.me honeypot)."
+  echo "  Verify this fingerprint out-of-band before joining: ${FINGERPRINT}"
+  if [[ ! -f "$TMPDIR_FL/federation.invite" ]]; then
+    warn "No federation.invite was fetched. To join manually later:"
+    echo "  docker compose cp federation.invite federloom:/tmp/federation.invite"
+    echo "  docker compose exec federloom federloomctl federation join /tmp/federation.invite --config /etc/federloom/config.yaml"
+    return 0
+  fi
+  read -r -p "Join the federation now? [y/N] " ans
+  if [[ "$ans" =~ ^[Yy]$ ]]; then
+    ( cd "$MAILCOW_ROOT" \
+      && docker compose cp "$TMPDIR_FL/federation.invite" federloom:/tmp/federation.invite \
+      && docker compose exec -T federloom federloomctl federation join /tmp/federation.invite \
+           --config /etc/federloom/config.yaml ) \
+      && log "Joined the federation." \
+      || warn "Federation join failed — you can retry the two commands above manually."
+  else
+    log "Skipped federation join. The invite is at $TMPDIR_FL/federation.invite (temporary)."
+  fi
+}
+
+cleanup() { [[ -n "$TMPDIR_FL" && -d "$TMPDIR_FL" ]] && rm -rf "$TMPDIR_FL"; }
+
 main() {
   parse_args "$@"
   preflight
-  # later tasks append: fetch_upstream; detect_and_confirm; register_bouncer;
-  # generate_config; merge_compose; start_and_report; offer_federation_join
+  trap cleanup EXIT
+  fetch_upstream
+  detect_and_confirm
+  register_bouncer
+  install_files
+  merge_compose
+  start_and_report
+  offer_federation_join
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
