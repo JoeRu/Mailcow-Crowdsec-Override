@@ -26,8 +26,6 @@ check "unknown option exits 1" "$rc" "1"
 # shellcheck disable=SC1090
 source "$SCRIPT"
 
-# (later tasks append more tests here)
-
 # --- extract_api_key ---
 key="$(extract_api_key < "$FIX/cscli-bouncers-add.txt")"
 check "extract_api_key pulls the key" "$key" "a1b2c3d4e5f60718293a4b5c6d7e8f90"

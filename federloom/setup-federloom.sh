@@ -55,8 +55,7 @@ parse_args() {
     esac
     shift
   done
-  [[ -n "$MAILCOW_ROOT" ]] || MAILCOW_ROOT="${MAILCOW_ROOT:-${DEFAULT_MAILCOW_ROOT}}"
-  [[ -n "$MAILCOW_ROOT" ]] || MAILCOW_ROOT="$DEFAULT_MAILCOW_ROOT"
+  MAILCOW_ROOT="${MAILCOW_ROOT:-$DEFAULT_MAILCOW_ROOT}"
 }
 
 preflight() {
@@ -301,6 +300,11 @@ install_files() {
   mkdir -p "$dir"
   # Always refresh rules.yaml so re-runs pick up upstream rule changes.
   cp "$TMPDIR_FL/rules.yaml" "$dir/rules.yaml"
+  # Persist the (public) federation trust invite so the join can be done later by
+  # hand; it is deleted from the temp dir on exit.
+  if [[ -f "$TMPDIR_FL/federation.invite" ]]; then
+    cp "$TMPDIR_FL/federation.invite" "$dir/federation.invite"
+  fi
   # Preserve an existing config on re-run when the bouncer key could not be
   # re-read (reused bouncer), so a previously-working api_key is not overwritten
   # with an empty value.
@@ -310,7 +314,7 @@ install_files() {
     generate_config "$dir/config.local.yaml"
     chmod 600 "$dir/config.local.yaml"
   fi
-  log "Wrote $dir/rules.yaml; config.local.yaml ready."
+  log "Installed FederLoom files under $dir."
 }
 
 start_and_report() {
@@ -332,25 +336,24 @@ start_and_report() {
 }
 
 offer_federation_join() {
+  local invite="$MAILCOW_ROOT/federloom/federation.invite"
   echo ""
   echo "Optional: join the maintainer's FederLoom federation (federloom.jru.me honeypot)."
   echo "  Verify this fingerprint out-of-band before joining: ${FINGERPRINT}"
-  if [[ ! -f "$TMPDIR_FL/federation.invite" ]]; then
-    warn "No federation.invite was fetched. To join manually later:"
-    echo "  docker compose cp federation.invite federloom:/tmp/federation.invite"
-    echo "  docker compose exec federloom federloomctl federation join /tmp/federation.invite --config /etc/federloom/config.yaml"
+  if [[ ! -f "$invite" ]]; then
+    warn "No federation.invite available. Re-run this script (it fetches the invite) to join later."
     return 0
   fi
   read -r -p "Join the federation now? [y/N] " ans
   if [[ "$ans" =~ ^[Yy]$ ]]; then
     ( cd "$MAILCOW_ROOT" \
-      && docker compose cp "$TMPDIR_FL/federation.invite" federloom:/tmp/federation.invite \
+      && docker compose cp "$invite" federloom:/tmp/federation.invite \
       && docker compose exec -T federloom federloomctl federation join /tmp/federation.invite \
            --config /etc/federloom/config.yaml ) \
       && log "Joined the federation." \
-      || warn "Federation join failed — you can retry the two commands above manually."
+      || warn "Federation join failed. Retry manually (see README: Joining the maintainer's federation)."
   else
-    log "Skipped federation join. The invite file is deleted on exit; re-run the script to join later."
+    log "Skipped federation join. The invite is saved at $invite — re-run or join by hand later."
   fi
 }
 

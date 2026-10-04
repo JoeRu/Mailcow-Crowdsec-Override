@@ -288,11 +288,11 @@ using the bundled trust invite. Verify this fingerprint out-of-band first:
 79bb d13a 114b 88fe
 ```
 
-To join later by hand:
+The setup script saves the invite to `federloom/federation.invite`. To join later by hand:
 
 ```bash
 cd /opt/mailcow-dockerized
-docker compose cp federation.invite federloom:/tmp/federation.invite
+docker compose cp federloom/federation.invite federloom:/tmp/federation.invite
 docker compose exec federloom federloomctl federation join /tmp/federation.invite \
     --config /etc/federloom/config.yaml
 ```
