@@ -78,6 +78,12 @@ detect_container() {
   docker ps --format '{{.Names}}' | grep -m1 -- "$1" || true
 }
 
+extract_api_key() {
+  # Reads `cscli bouncers add` output on stdin; prints the API key or nothing.
+  awk 'tolower($0) ~ /api key for/ {found=1; next}
+       found && /[A-Za-z0-9+\/=]{16,}/ {gsub(/[[:space:]]/,""); print; exit}'
+}
+
 main() {
   parse_args "$@"
   preflight
